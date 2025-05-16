@@ -2,6 +2,8 @@
 
 A comprehensive tool to check and analyze the backup configuration of all VMs on a Proxmox cluster.
 
+**Current Version: 0.0.1 (Initial Development Release)**
+
 ## Features
 
 - Check if all VMs are included in backup jobs
