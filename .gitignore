@@ -1,0 +1,20 @@
+# .gitignore for Proxmox VM Backup Checker
+
+# Temporary files
+*~
+*.swp
+*.tmp
+
+# Logs
+logs/
+*.log
+
+# OS specific files
+.DS_Store
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+
+# Private configuration
+config.local.sh
