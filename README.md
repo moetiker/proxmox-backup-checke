@@ -23,7 +23,7 @@ A comprehensive tool to check and analyze the backup configuration of all VMs on
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/proxmox-backup-checker.git
+   git clone https://github.com/moetiker/proxmox-backup-checker.git
    cd proxmox-backup-checker
    ```
 
