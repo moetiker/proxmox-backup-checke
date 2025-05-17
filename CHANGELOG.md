@@ -8,12 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-
-### Changed
+- Support for detecting VMs included in backups via resource pools
+- Added "Inclusion Type" information to backup job details
+- Enhanced pool membership detection
+- Improved summary with backup job ID and inclusion method information
+- Better error messages for disk detection issues
 
 ### Fixed
-
-### Removed
+- Fixed issue where VMs in resource pools were incorrectly reported as not backed up
+- Fixed inconsistency between main output and summary for specific VM checks
+- Improved display of resource pool information in backup job summaries
+- Fixed "No disks detected" issue in summary when disks are shown in VM details
+- Fixed "local: can only be used in a function" error in summary section
 
 ## [0.0.1] - 2025-05-16
 

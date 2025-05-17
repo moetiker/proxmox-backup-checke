@@ -505,6 +505,7 @@ fi
 # Store node and vm_type for later use in summary (especially for specific VM)
 VM_NODE=""
 VM_TYPE=""
+VM_DISK_INFO=""
 
 echo "$all_vms" | jq -c '.[]' | while read -r vm; do
     vmid=$(echo "$vm" | jq -r '.vmid')
@@ -536,6 +537,11 @@ echo "$all_vms" | jq -c '.[]' | while read -r vm; do
         # Check if all disks are included in backup
         disk_info=$(check_vm_disks_backup "$vmid" "$node" "$vm_type")
         
+        # Store disk info for summary if this is the specific VM we're looking at
+        if [[ "$vmid" == "$SPECIFIC_VMID" ]]; then
+            VM_DISK_INFO="$disk_info"
+        fi
+        
         # Parse disk info safely
         if [[ "$disk_info" == *"all:"* && "$disk_info" == *"excluded:"* ]]; then
             all_disk_count=$(echo "$disk_info" | cut -d',' -f1 | cut -d':' -f2)
@@ -566,7 +572,11 @@ echo "$all_vms" | jq -c '.[]' | while read -r vm; do
         # If detailed view is requested, show the backup jobs
         if [ "$SHOW_DETAILS" = true ]; then
             backup_jobs=$(get_vm_backup_jobs "$vmid")
-            for job_id in $backup_jobs; do
+            for job_id_with_info in $backup_jobs; do
+                # Split job_id and inclusion info
+                job_id="${job_id_with_info%%:*}"
+                inclusion_info="${job_id_with_info#*:}"
+                
                 # If using the file-based method
                 if [[ "$job_id" == job_* ]] && [ "$all_backup_jobs" = "[]" ] && [ -f "/etc/pve/vzdump.cron" ]; then
                     job_num=${job_id#job_}
@@ -601,6 +611,7 @@ echo "$all_vms" | jq -c '.[]' | while read -r vm; do
                     fi
                     
                     echo -e "   ├── Backup Job: ${job_id}"
+                    echo -e "   │   ├── Inclusion Type: ${inclusion_info}"
                     echo -e "   │   ├── Schedule: $schedule"
                     echo -e "   │   ├── Storage: $storage"
                     echo -e "   │   ├── Mode: $mode"
@@ -616,12 +627,14 @@ echo "$all_vms" | jq -c '.[]' | while read -r vm; do
                         retention=$(echo "$job_info" | jq -r '.maxfiles // "default"')
                         
                         echo -e "   ├── Backup Job: $job_id"
+                        echo -e "   │   ├── Inclusion Type: ${inclusion_info}"
                         echo -e "   │   ├── Schedule: $schedule"
                         echo -e "   │   ├── Storage: $storage"
                         echo -e "   │   ├── Mode: $mode"
                         echo -e "   │   └── Retention: $retention backups"
                     else
                         echo -e "   ├── Backup Job: $job_id"
+                        echo -e "   │   ├── Inclusion Type: ${inclusion_info}"
                         echo -e "   │   └── (Job details unavailable)"
                     fi
                 fi
@@ -639,9 +652,15 @@ echo ""
 echo -e "${BLUE}=== Summary ===${NC}"
 if [[ -n "$SPECIFIC_VMID" ]]; then
     echo -e "VM ID: $SPECIFIC_VMID"
-    if [ $vms_with_backup -gt 0 ]; then
-        # Check disk backup status for the specific VM
-        disk_info=$(check_vm_disks_backup "$SPECIFIC_VMID" "$VM_NODE" "$VM_TYPE")
+    # Recheck if VM is included in backups (for consistency)
+    if is_vm_in_backup "$SPECIFIC_VMID"; then
+        # Use stored disk info to ensure consistency with main output
+        if [[ -n "$VM_DISK_INFO" ]]; then
+            disk_info="$VM_DISK_INFO"
+        else
+            # Fallback to rechecking if somehow the stored info is missing
+            disk_info=$(check_vm_disks_backup "$SPECIFIC_VMID" "$VM_NODE" "$VM_TYPE")
+        fi
         
         # Parse disk info safely
         if [[ "$disk_info" == *"all:"* && "$disk_info" == *"excluded:"* ]]; then
@@ -660,7 +679,7 @@ if [[ -n "$SPECIFIC_VMID" ]]; then
                     if [ "$all_disk_count" -gt 0 ]; then
                         echo -e "Disks: All $all_disk_count disks included in backup"
                     else
-                        echo -e "Disks: No disks detected"
+                        echo -e "Disks: No disks detected (this may be a detection error)"
                     fi
                 fi
             else
@@ -670,6 +689,35 @@ if [[ -n "$SPECIFIC_VMID" ]]; then
         else
             # Fallback if check_vm_disks_backup failed
             echo -e "Backup Status: ${GREEN}Included in backup${NC}"
+        fi
+        
+        # Show inclusion method
+        backup_jobs=$(get_vm_backup_jobs "$SPECIFIC_VMID")
+        if [ -n "$backup_jobs" ]; then
+            echo -e "Backup Jobs and Inclusion Methods:"
+            for job_id_with_info in $backup_jobs; do
+                job_id="${job_id_with_info%%:*}"
+                inclusion_type="${job_id_with_info#*:}"
+                
+                # Get the job description
+                job_comment=""
+                if [[ "$job_id" != job_* ]]; then
+                    job_comment=$(echo "$all_backup_jobs" | jq -r ".[] | select(.id==\"$job_id\") | .comment // \"\"")
+                fi
+                
+                # Get job information
+                job_info=""
+                if [[ "$job_id" != job_* ]]; then
+                    pool=$(echo "$all_backup_jobs" | jq -r ".[] | select(.id==\"$job_id\") | .pool // \"\"")
+                    
+                    # Get pool from this job
+                    if [[ -n "$pool" ]]; then
+                        inclusion_type="Pool: $pool"
+                    fi
+                fi
+                
+                echo -e "  - ${GREEN}$job_id${NC} - ${inclusion_type}"
+            done
         fi
     else
         echo -e "Backup Status: ${RED}Not included in any backup${NC}"
